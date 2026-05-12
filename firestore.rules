@@ -1,0 +1,48 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Función auxiliar para verificar si el usuario es un administrador activo
+    function isAdmin() {
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/usuarios_admin/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/usuarios_admin/$(request.auth.uid)).data.activo == true;
+    }
+
+    // 1. Productos, Origen y Destinos: 
+    // - Lectura: pública (cualquiera puede ver el catálogo)
+    // - Escritura: solo administradores activos
+    match /productos/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    match /origen/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    match /destinos/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 2. Leads (Formularios de cotización)
+    // - Creación: pública (cualquier persona puede cotizar y dejar sus datos)
+    // - Lectura, Actualización, Borrado: solo administradores
+    match /leads/{document=**} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
+    // 3. Usuarios Admin
+    // - Lectura: Un admin puede leer su propio documento, o puedes permitir que todos los admins se lean entre sí.
+    // - Escritura: Nadie desde el frontend (por seguridad, los admins se crean desde la consola de Firebase)
+    //   o puedes permitir que un admin edite su propio perfil.
+    match /usuarios_admin/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false; // Evita que alguien se ponga 'activo: true' maliciosamente
+    }
+  }
+}
